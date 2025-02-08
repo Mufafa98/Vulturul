@@ -8,5 +8,4 @@ export async function UserInfoHandler(message, args) {
         .join(', ');
 
     message.reply(`Your roles: ${roles || "No roles assigned"}`);
-
 }

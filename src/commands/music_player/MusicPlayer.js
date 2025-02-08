@@ -59,6 +59,7 @@ export class MusicPlayer {
     setRepeat() {
         if (this.repeat) {
             this.repeat = false;
+            this.queue.pop();
             return;
         }
         this.queue.push(this.playing);

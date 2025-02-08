@@ -1,3 +1,4 @@
+import { log } from "../utils/Logger.js";
 import chalk from "chalk";
 import { PermissionsBitField } from "discord.js";
 
@@ -12,6 +13,7 @@ export async function DeleteMessageHandler(message, params) {
     const permissions = Array.from(permissionsSet);
 
     if (!permissions.find(permission => permission === PermissionsBitField.Flags.ManageMessages)) {
+        log(`[${chalk.yellow("Warning")}] User ${message.author.username} does not have the required permissions to delete messages.`);
         message.reply("You do not have the required permissions to delete messages.");
         return;
     }
@@ -23,6 +25,7 @@ export async function DeleteMessageHandler(message, params) {
     else {
         if (amount < 1 || amount > 50) {
             message.reply("You can only delete between 1 and 50 messages.");
+            log(`[${chalk.yellow("Warning")}] User ${message.author.username} tried to delete more than 50 messages.`);
             return;
         }
         try {
@@ -30,13 +33,13 @@ export async function DeleteMessageHandler(message, params) {
                 limit: amount + 1,
             })
             for (const msg of messages.values()) {
-                console.log(`[${chalk.yellow("Delete")}] Deleting message: ${msg.content}`);
+                log(`[${chalk.magenta("Delete")}] Deleting message: "${msg.content}" of user ${msg.author.username}`);
                 await msg.delete();
             }
-            console.log(`[${chalk.green("Success")}] Deleted ${amount} messages.`);
+            log(`[${chalk.green("Success")}] Deleted ${amount} messages.`);
         }
         catch (error) {
-            console.error(`[${chalk.red("Error")}] ${error}`);
+            log(`[${chalk.red("Error")}] ${error}`);
             message.reply("An error occurred while trying to delete messages.");
         }
     }

@@ -3,10 +3,11 @@ import { Client, GatewayIntentBits, Events } from 'discord.js';
 import chalk from 'chalk';
 
 import { CommandDispatcher } from './CommandDispatcher.js';
-import axios from 'axios';
+import { log } from './utils/Logger.js';
 dotenv.config();
 
-console.log(`\n\n[${chalk.grey("Info")}] Starting Bot...`);
+log(`[${chalk.grey("Info")}] Starting Bot...`);
+
 
 const client = new Client(
     {
@@ -25,4 +26,6 @@ const commandDispatcher = new CommandDispatcher();
 client.on(Events.MessageCreate, commandDispatcher.dispatch);
 
 client.login(process.env.BOT_TOKEN);
-console.log(`[${chalk.green("Success")}] Bot Started!`);
+log(`[${chalk.green("Success")}] Bot Started!`);
+
+

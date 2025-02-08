@@ -1,5 +1,7 @@
 import { spawn } from 'node:child_process';
 import { MusicPlayer } from './music_player/MusicPlayer.js';
+import chalk from 'chalk';
+import { log } from '../utils/Logger.js';
 
 import {
     joinVoiceChannel,
@@ -34,8 +36,8 @@ let musicListCollector = undefined;
 let musicListController = undefined;
 
 async function DownloadSong(url, author) {
+    log(`[${chalk.grey("Info")}][${chalk.blue("Download")}] Downloading from ${url}`);
     let downloaded = false;
-
     const downloaderProcess = spawn(
         'python',
         [
@@ -43,25 +45,42 @@ async function DownloadSong(url, author) {
             url
         ]
     );
+    let status = 0;
     downloaderProcess.stdout.on('data', (data) => {
-        const source = data.toString().trim().split(' ')[0];
-        const thumbnail = data.toString().trim().split(' ')[1];
-        const title = data.toString().trim().split(' ').slice(2).join(' ');
-        downloaded = true;
-        musicPlayer.add(source, thumbnail, title, author);
+        const stringData = data.toString().trim();
+        if (stringData === 'start') {
+            log(`[${chalk.grey("Info")}][${chalk.blue("Download")}] Downloading song from ${url}`);
+            status = 1;
+        }
+        else if (stringData === 'done') {
+            log(`[${chalk.green("Success")}][${chalk.blue("Download")}] Song downloaded from ${url}`);
+            status = 2;
+        }
+        else if (status === 1) {
+            const source = stringData.split(' ')[0];
+            const thumbnail = stringData.split(' ')[1];
+            const title = stringData.split(' ').slice(2).join(' ');
+            musicPlayer.add(source, thumbnail, title, author);
+            log(`[${chalk.green("Success")}][${chalk.blue("Download")}] Song downloaded from ${url}. Title: ${title}`);
+        } else if (status === 2) {
+            downloaded = true;
+        }
     });
 
     downloaderProcess.stderr.on('data', (data) => {
         console.error(`stderr: ${data}`);
+        log(`[${chalk.red("Error")}][${chalk.blue("Download")}] Error downloading song from ${url}. Reason: ${data}`);
     });
 
     downloaderProcess.on('close', (code) => {
         console.log(`child process exited with code ${code}`);
+        downloaded = true;
     });
 
     while (downloaded === false) {
         await new Promise(resolve => setTimeout(resolve, 1000));
     }
+    log(`[${chalk.green("Success")}][${chalk.blue("Download")}] Song downloaded!`);
 }
 
 function createMusicEmbed() {
@@ -79,19 +98,26 @@ function createMusicEmbed() {
 function createMusicListEmbed() {
     const playing = musicPlayer.currentSong().title;
     let waiting = "";
+    const waitingList = [];
     let counter = 1;
-    // biome-ignore lint/complexity/noForEach: <explanation>
-    musicPlayer.queue.forEach(song => {
-        waiting += `${counter}. ${song.title}\n`;
+    for (let i = 0; i < musicPlayer.queue.length; i++) {
+        const temp = `${waiting}${counter}. ${musicPlayer.queue[i].title}\n`
+        if (temp.length > 1000) {
+            waitingList.push(waiting);
+            waiting = "";
+        }
+        waiting += `${counter}. ${musicPlayer.queue[i].title}\n`;
         counter++;
-    });
+    }
+    if (waiting.length > 0) {
+        waitingList.push(waiting);
+    }
     try {
-
         const embed = new EmbedBuilder()
             .setAuthor({
                 name: "🎤 Bossule, avem numai hituri grele diseară! 🔥💸",
             });
-        if (waiting.length < 1) {
+        if (waitingList.length < 1) {
             embed.addFields({
                 name: "💿 Mai tarziu nu stiu ce cantam",
                 value: "🤷‍♂️",
@@ -101,9 +127,17 @@ function createMusicListEmbed() {
         else {
             embed.addFields({
                 name: "💿 Pe listă avem de toate",
-                value: waiting.toString(),
+                value: " ",
                 inline: false
             });
+            for (let i = 0; i < waitingList.length; i++) {
+                console.log(waitingList[i]);
+                embed.addFields({
+                    name: " ",
+                    value: waitingList[i],
+                    inline: false
+                });
+            }
         }
         embed.addFields({
             name: "Da acuma pe loc se canta",
@@ -229,23 +263,24 @@ class ControlButtons {
     }
 }
 
-
-
 /// Check if th requirements for entering a voice channel are met
 function CanJoinVoice(message, params) {
     // Check if the user provided one URL
     if (params.length === 0) {
         message.reply('You need to provide a URL!');
+        log(`[${chalk.yellow("Warning")}][${chalk.blue("Play")}] User ${message.author.username} did not provide a valid URL`);
         return false;
     }
     if (params.length > 1) {
         message.reply('You can only provide one URL!');
+        log(`[${chalk.yellow("Warning")}][${chalk.blue("Play")}] User ${message.author.username} provided more than one URL`);
         return false;
     }
     // Check if the user is in a voice channel
     const channel = message.member.voice.channel;
     if (!channel) {
         message.reply('You need to join a voice channel first!');
+        log(`[${chalk.yellow("Warning")}][${chalk.blue("Play")}] User ${message.author.username} is not in a voice channel`);
         return false;
     }
     return true;
@@ -286,7 +321,6 @@ function CreateAudioResource() {
     }
 }
 
-
 export async function PlayHandler(message, params) {
     if (!CanJoinVoice(message, params)) {
         return;
@@ -296,18 +330,20 @@ export async function PlayHandler(message, params) {
         message.member.nickname || message.author.username
     );
     JoinVoiceChannel(message);
+    log(`[${chalk.green("Success")}][${chalk.blue("Play")}] Bot joined voice channel`);
     CreateAudioPlayer();
     CreateAudioResource();
+    log(`[${chalk.green("Success")}][${chalk.blue("Play")}] Audio player and resource created`);
     const commandChannel = message.channel;
-    // Play the song
+
     connection.subscribe(audioPlayer);
     audioPlayer.play(audioResource);
-    // Create the embed
+    log(`[${chalk.green("Success")}][${chalk.blue("Play")}] Audio player started playing ${musicPlayer.currentSong().title}`);
 
     musicEmbed = createMusicEmbed();
-    controlButtons = new ControlButtons(musicPlayer);
 
     if (musicController === undefined) {
+        controlButtons = new ControlButtons(musicPlayer);
         musicController = await commandChannel.send({
             embeds: [musicEmbed],
             components: [controlButtons.getRow()],
@@ -340,7 +376,7 @@ export async function PlayHandler(message, params) {
                     withResponse: true,
                 });
             } else if (i.customId === 'repeat') {
-                await Repeat(message, params);
+                await Repeat();
                 controlButtons.repeat();
                 await musicController.edit({
                     components: [controlButtons.getRow()],
@@ -359,7 +395,7 @@ export async function PlayHandler(message, params) {
             }
         });
     }
-
+    log(`[${chalk.green("Success")}][${chalk.blue("Play")}] Music Control panel created`);
 
 
     message.delete();
@@ -368,13 +404,16 @@ export async function PlayHandler(message, params) {
 export async function PauseAudioPlayer() {
     if (audioPlayer.state.status === AudioPlayerStatus.Paused) {
         audioPlayer.unpause();
+        log(`[${chalk.green("Success")}][${chalk.blue("Pause")}] Audio player unpaused on ${musicPlayer.currentSong().title}`);
     } else {
         audioPlayer.pause();
+        log(`[${chalk.green("Success")}][${chalk.blue("Pause")}] Audio player paused on ${musicPlayer.currentSong().title}`);
     }
 }
 
-export async function Repeat(message, params) {
+export async function Repeat() {
     musicPlayer.setRepeat();
+    log(`[${chalk.green("Success")}][${chalk.blue("Repeat")}] Repeat state changed to ${musicPlayer.repeat}`);
 }
 
 export async function PlayNext() {
@@ -383,12 +422,14 @@ export async function PlayNext() {
         audioResource = createAudioResource(musicPlayer.whatToPlay());
         audioPlayer.play(audioResource);
         musicEmbed = createMusicEmbed();
+        log(`[${chalk.green("Success")}][${chalk.blue("Next")}] Next song is ${musicPlayer.currentSong().title}`);
     } else {
         Disconect();
     }
 }
 
 export async function Disconect() {
+    // TODO: Delete last message when leaving
     connection.destroy();
     musicPlayer.stop();
     connection = undefined;
@@ -397,4 +438,5 @@ export async function Disconect() {
     musicEmbed = undefined;
     controlButtons = undefined;
     musicController = undefined;
+    log(`[${chalk.green("Success")}][${chalk.blue("Leave")}] Bot left voice channel`);
 }

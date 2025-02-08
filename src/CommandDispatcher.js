@@ -3,6 +3,9 @@ import { DeleteMessageHandler } from "./commands/DeleteMessage.js";
 import { UserInfoHandler } from "./commands/UserInfo.js";
 import { PlayHandler, Repeat, PlayNext, Disconect } from "./commands/PlayMusic.js";
 
+import { log } from "./utils/Logger.js";
+import chalk from "chalk";
+
 export class CommandDispatcher {
     constructor() {
         this.commands = new Map();
@@ -20,6 +23,7 @@ export class CommandDispatcher {
         const command_content = command.content;
         if (command_author.bot) return;
         if (command_content.startsWith("\\")) {
+            log(`[${chalk.blue("Message")}] ${command.author.username}: ${command.content}`);
             const new_command = command_content.slice(1).split(" ");
             const command_name = new_command[0];
             const command_args = new_command.slice(1);

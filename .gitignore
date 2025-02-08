@@ -131,4 +131,5 @@ dist
 
 # Custom files
 cache/
+logs/
 package-lock.json
